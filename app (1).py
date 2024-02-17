@@ -1,59 +1,25 @@
 import streamlit as st
 import re
+import spacy
 
 # Set page config to wide layout
 st.set_page_config(layout="wide")
 
-# Define custom CSS styles for dark theme
-# Add custom CSS styles
-st.markdown(
-    """
-    <style>
-        /* Add custom styles here */
-        .title-text {
-            color: blue; /* Change font color to blue */
-            font-size: 36px;
-            font-weight: bold;
-            margin-bottom: 20px;
-            font-family: Arial, sans-serif;
-        }
-        .input-text, .stTextInput > div > div > div > input {
-            background-color: transparent !important; /* Make input boxes transparent */
-            border: 1px solid blue; /* Add blue outline to input boxes */
-            color: blue; /* Change font color to blue */
-        }
-        .stTextInput > div > div > div > input:focus {
-            box-shadow: 0 0 0 2px lightgreen; /* Add green shadow when input box is selected */
-        }
-        .stButton > button {
-            background-color: transparent !important; /* Make buttons transparent */
-            border: 1px solid blue; /* Add blue outline to buttons */
-            color: blue; /* Change font color to blue */
-        }
-        .stButton > button:hover {
-            box-shadow: 0 0 0 2px lightgreen; /* Add green shadow when button is hovered */
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-
 def main():
-    page = st.session_state.get("page", "Launch")
+    page = st.session_state.get("page", "Landing")
     user_info = st.session_state.get("user_info", {})  # Retrieve user information from session state
     
-    if page == "Launch":
-        render_launch_page()
+    if page == "Landing":
+        render_landing_page()
     elif page == "User Information":
         render_user_info_page()
     elif page == "Dashboard":
         render_dashboard(user_info)  # Pass user_info to render_dashboard function
 
-def render_launch_page():
+def render_landing_page():
     st.title("Welcome to Career Navigator")
     st.markdown("<p style='font-size: 24px;'>This is where you can start your career journey!</p>", unsafe_allow_html=True)
-    if st.button("Continue"):
+    if st.button("Continue to User Information"):
         st.session_state["page"] = "User Information"
 
 def render_user_info_page():
@@ -114,9 +80,12 @@ def render_user_info_page():
             position = st.text_input("Enter your current position:")
             years_worked = st.number_input("Enter how many years you've worked:", min_value=0)
 
+    # Ask for resume upload
+    uploaded_resume = st.file_uploader("Upload your resume (PDF or DOCX)", type=["pdf", "docx"], key="resume")
+
     # Check if all mandatory fields are filled
     mandatory_fields_filled = False
-    if name.strip() and email.strip() and college_name.strip() and course_name:
+    if name.strip() and email.strip() and college_name.strip() and course_name and uploaded_resume:
         if is_studying == "Yes":
             if internships_done == "Yes":
                 if internship_company.strip() and internship_role.strip() and internship_duration:
@@ -146,53 +115,132 @@ def render_user_info_page():
                 "current_employment": current_employment,
                 "company_name": company_name if current_employment == "Yes" else None,
                 "position": position if current_employment == "Yes" else None,
-                "years_worked": years_worked if current_employment == "Yes" else None
+                "years_worked": years_worked if current_employment == "Yes" else None,
+                "uploaded_resume": uploaded_resume
             }
             st.session_state["user_info"] = user_info
             st.session_state["page"] = "Dashboard"
     else:
         st.warning("Please fill in all mandatory fields to proceed to the Dashboard.")
 
+import spacy
+
+# Function to extract skills from the resume text
+def extract_skills_from_resume(resume_text):
+    # Load English tokenizer, tagger, parser, NER, and word vectors
+    nlp = spacy.load("en_core_web_sm")
+
+    # Process the resume text using spaCy
+    doc = nlp(resume_text)
+
+    # Initialize an empty set to store extracted skills
+    skills = set()
+
+    # Extract skills using NER (Named Entity Recognition) or pattern matching
+    for ent in doc.ents:
+        if ent.label_ == "SKILL":
+            skills.add(ent.text.lower())
+
+    return skills
+
+# Function to suggest job roles based on the extracted skills
+def suggest_job_roles(skills):
+    # Mapping of job roles to associated skills
+    job_role_skills = {
+        "Software Engineer": ["programming", "software development", "algorithm design", "data structures"],
+        "Network Engineer": ["networking", "routing", "switching", "firewalls"],
+        "Database Administrator": ["database management", "sql", "database tuning", "data modeling"],
+        "Systems Analyst": ["system analysis", "requirements gathering", "business process modeling"],
+        "Cybersecurity Analyst": ["cybersecurity", "penetration testing", "vulnerability assessment"],
+        "Data Scientist": ["data analysis", "machine learning", "data visualization", "statistical modeling"],
+        "Cloud Architect": ["cloud computing", "aws", "azure", "google cloud platform"],
+        "Web Developer": ["web development", "html", "css", "javascript", "front-end", "back-end"],
+        "Telecommunication Engineer": ["telecommunication systems", "wireless communication", "telephony protocols"],
+        "Signal Processing Engineer": ["signal processing", "digital signal processing", "image processing"],
+        "Electronics Engineer": ["analog electronics", "digital electronics", "circuit design", "pcb design"]
+    }
+
+    # Initialize a dictionary to store the count of matching skills for each job role
+    job_role_counts = {role: 0 for role in job_role_skills}
+
+    # Count the matching skills for each job role
+    for skill in skills:
+        for role, role_skills in job_role_skills.items():
+            if skill in role_skills:
+                job_role_counts[role] += 1
+    
+    # Rank the job roles based on the count of matching skills
+    ranked_job_roles = sorted(job_role_counts, key=job_role_counts.get, reverse=True)
+    
+    # Return only the top 7 ranked job roles
+    return ranked_job_roles[:7]
+
+import streamlit as st
+
+import streamlit as st
+
+# Function to analyze the resume
+def analyze_resume(resume_text):
+    # Extract skills from the resume text
+    skills = extract_skills_from_resume(resume_text)
+
+    # Suggest job roles based on the extracted skills
+    job_roles = suggest_job_roles(skills)
+
+    return skills, job_roles
+
+# Function to format skills as a string
+def format_skills(skills):
+    skills_str = ", ".join(skills)
+    return f"Skills: {skills_str}"
+
+# Function to format job roles as a string
+def format_job_roles(job_roles):
+    job_roles_str = ", ".join(job_roles)
+    return f"Job Roles: {job_roles_str}"
+
+# Main function to render the dashboard
 def render_dashboard(user_info):
     st.title("Dashboard")
     
-    # Retrieve user information from session state
-    name = user_info.get("name", "")
-    is_undergraduate = user_info.get("is_undergraduate", False)
-    is_studying = user_info.get("is_studying", False)
-    college_name = user_info.get("college_name", "")
-    course_name = user_info.get("course_name", "")
-    study_year = user_info.get("study_year", "")
-    company_name = user_info.get("company_name", "")
-    position = user_info.get("position", "")
-
     # Display user information in sidebar
     st.sidebar.title("User Information")
-    st.sidebar.write(f"{name}")
+    st.sidebar.write(f"{user_info['name']}")
+    st.sidebar.write(f"{user_info['college_name']}, {user_info['course_name']}, {user_info['study_year']}")
 
-    if is_undergraduate and is_studying:
-        st.sidebar.write(f"{college_name}, {course_name}, {study_year}")
-    elif not is_undergraduate and is_studying:
-        st.sidebar.write(f"{college_name}, {course_name}, {study_year}")
-    elif is_undergraduate and not is_studying:
-        st.sidebar.write(f"{college_name}, {course_name}")
-    elif not is_undergraduate and not is_studying:
-        st.sidebar.write(f"{college_name}, {course_name}")
+    if user_info.get("company_name") and user_info.get("position"):
+        st.sidebar.write(f"{user_info['company_name']}, {user_info['position']}")
 
-    if company_name and position:
-        st.sidebar.write(f"{company_name}, {position}")
-    
-    # Add button to upload resume in the sidebar
-    uploaded_file = st.sidebar.file_uploader("Upload your resume", type=["pdf", "docx"])
-    
-    # Add navigation tab at the bottom of the sidebar
+    # Add navigation buttons at the bottom of the sidebar
     st.sidebar.markdown("---")
+    if st.sidebar.button("Show Resume Analysis"):
+        st.session_state["show_resume_analysis"] = True
+    
     if st.sidebar.button("Back to User Information"):
         st.session_state["page"] = "User Information"
-    
-    # Add dashboard content here
-    st.write("Welcome to your personalized dashboard!")
+
+    if st.session_state.get("show_resume_analysis"):
+        uploaded_resume = user_info.get("uploaded_resume")
+        if uploaded_resume is not None:
+            try:
+                resume_text = uploaded_resume.read().decode("utf-8")
+                skills, job_roles = analyze_resume(resume_text)
+
+                # Display resume analysis in an expandable panel
+                with st.expander("Resume Analysis", expanded=True):
+                    if st.button("Evaluate"):
+                        try:
+                            resume_text = uploaded_resume.read().decode("utf-8")
+                            skills, job_roles = analyze_resume(resume_text)
+                            st.subheader("Suggested Job Roles")
+                            st.write(format_job_roles(job_roles))
+                        except UnicodeDecodeError:
+                            st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
+
+            except UnicodeDecodeError:
+                st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
+        else:
+            st.write("Upload your resume to analyze skills and suggest job roles.")
 
 if __name__ == "__main__":
     main()
-
