@@ -1,6 +1,8 @@
 import streamlit as st
 import re
 import spacy
+import requests 
+from bs4 import BeautifulSoup
 
 # Set page config to wide layout
 st.set_page_config(layout="wide")
@@ -175,10 +177,6 @@ def suggest_job_roles(skills):
     # Return only the top 7 ranked job roles
     return ranked_job_roles[:7]
 
-import streamlit as st
-
-import streamlit as st
-
 # Function to analyze the resume
 def analyze_resume(resume_text):
     # Extract skills from the resume text
@@ -199,7 +197,67 @@ def format_job_roles(job_roles):
     job_roles_str = ", ".join(job_roles)
     return f"Job Roles: {job_roles_str}"
 
-# Main function to render the dashboard
+def scrape_coursera_courses(job_roles):
+    courses = []
+    ds_course = [['Machine Learning Crash Course by Google [Free]', 'https://developers.google.com/machine-learning/crash-course'],
+                 ['Machine Learning A-Z by Udemy','https://www.udemy.com/course/machinelearning/'],
+                 ['Machine Learning by Andrew NG','https://www.coursera.org/learn/machine-learning'],
+                 ['Data Scientist Master Program of Simplilearn (IBM)','https://www.simplilearn.com/big-data-and-analytics/senior-data-scientist-masters-program-training'],
+                 ['Data Science Foundations: Fundamentals by LinkedIn','https://www.linkedin.com/learning/data-science-foundations-fundamentals-5'],
+                 ['Data Scientist with Python','https://www.datacamp.com/tracks/data-scientist-with-python'],
+                 ['Programming for Data Science with Python','https://www.udacity.com/course/programming-for-data-science-nanodegree--nd104'],
+                 ['Programming for Data Science with R','https://www.udacity.com/course/programming-for-data-science-nanodegree-with-R--nd118'],
+                 ['Introduction to Data Science','https://www.udacity.com/course/introduction-to-data-science--cd0017'],
+                 ['Intro to Machine Learning with TensorFlow','https://www.udacity.com/course/intro-to-machine-learning-with-tensorflow-nanodegree--nd230']]
+
+    web_course = [['Django Crash course [Free]','https://youtu.be/e1IyzVyrLSU'],
+                  ['Python and Django Full Stack Web Developer Bootcamp','https://www.udemy.com/course/python-and-django-full-stack-web-developer-bootcamp'],
+                  ['React Crash Course [Free]','https://youtu.be/Dorf8i6lCuk'],
+                  ['ReactJS Project Development Training','https://www.dotnettricks.com/training/masters-program/reactjs-certification-training'],
+                  ['Full Stack Web Developer - MEAN Stack','https://www.simplilearn.com/full-stack-web-developer-mean-stack-certification-training'],
+                  ['Node.js and Express.js [Free]','https://youtu.be/Oe421EPjeBE'],
+                  ['Flask: Develop Web Applications in Python','https://www.educative.io/courses/flask-develop-web-applications-in-python'],
+                  ['Full Stack Web Developer by Udacity','https://www.udacity.com/course/full-stack-web-developer-nanodegree--nd0044'],
+                  ['Front End Web Developer by Udacity','https://www.udacity.com/course/front-end-web-developer-nanodegree--nd0011'],
+                  ['Become a React Developer by Udacity','https://www.udacity.com/course/react-nanodegree--nd019']]
+
+    android_course = [['Android Development for Beginners [Free]','https://youtu.be/fis26HvvDII'],
+                      ['Android App Development Specialization','https://www.coursera.org/specializations/android-app-development'],
+                      ['Associate Android Developer Certification','https://grow.google/androiddev/#?modal_active=none'],
+                      ['Become an Android Kotlin Developer by Udacity','https://www.udacity.com/course/android-kotlin-developer-nanodegree--nd940'],
+                      ['Android Basics by Google','https://www.udacity.com/course/android-basics-nanodegree-by-google--nd803'],
+                      ['The Complete Android Developer Course','https://www.udemy.com/course/complete-android-n-developer-course/'],
+                      ['Building an Android App with Architecture Components','https://www.linkedin.com/learning/building-an-android-app-with-architecture-components'],
+                      ['Android App Development Masterclass using Kotlin','https://www.udemy.com/course/android-oreo-kotlin-app-masterclass/'],
+                      ['Flutter & Dart - The Complete Flutter App Development Course','https://www.udemy.com/course/flutter-dart-the-complete-flutter-app-development-course/'],
+                      ['Flutter App Development Course [Free]','https://youtu.be/rZLR5olMR64']]
+
+    # Coursera URL for job role search
+    url = "https://www.coursera.org/search?query={}&index=prod_all_products_term_optimization".format("+".join(job_roles))
+
+    # Send GET request
+    response = requests.get(url)
+    if response.status_code == 200:
+        # Parse HTML content
+        soup = BeautifulSoup(response.text, "html.parser")
+        
+        # Extract course information
+        course_cards = soup.find_all("li", class_="ais-InfiniteHits-item")
+        for card in course_cards:
+            title1 = card.find("h2", class_="color-primary-text headline-1-text flex-1").text.strip()
+            description = card.find("div", class_="partner-banner--content").text.strip()
+            link1 = "https://www.coursera.org" + card.find("a")["href"]
+            #courses.append({"title": title, "description": description, "link": link})
+        
+        if job_roles == "Systems Analyst" or "Database Administrator" or "Systems Analyst" or "Cybersecurity Analyst" or "Data Scientist":
+            transformed_array = [{'title': item[0], 'link': item[1]} for item in ds_course]
+            courses = ds_course
+        elif job_roles == "Software Engineer":
+            transformed_array = [{'title': item[0], 'link': item[1]} for item in web_course]
+            courses = web_course
+    
+    return courses
+
 def render_dashboard(user_info):
     st.title("Dashboard")
     
@@ -213,29 +271,38 @@ def render_dashboard(user_info):
 
     # Add navigation buttons at the bottom of the sidebar
     st.sidebar.markdown("---")
-    if st.sidebar.button("Show Resume Analysis"):
-        st.session_state["show_resume_analysis"] = True
-    
     if st.sidebar.button("Back to User Information"):
         st.session_state["page"] = "User Information"
+        st.session_state["show_resume_analysis"] = False
+        st.session_state["show_course_recommendation"] = False
 
-    if st.session_state.get("show_resume_analysis"):
+    # Main section
+    with st.expander("Resume Analysis and Course Recommendations", expanded=True):
         uploaded_resume = user_info.get("uploaded_resume")
         if uploaded_resume is not None:
             try:
                 resume_text = uploaded_resume.read().decode("utf-8")
                 skills, job_roles = analyze_resume(resume_text)
 
-                # Display resume analysis in an expandable panel
-                with st.expander("Resume Analysis", expanded=True):
-                    if st.button("Evaluate"):
-                        try:
-                            resume_text = uploaded_resume.read().decode("utf-8")
-                            skills, job_roles = analyze_resume(resume_text)
-                            st.subheader("Suggested Job Roles")
-                            st.write(format_job_roles(job_roles))
-                        except UnicodeDecodeError:
-                            st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
+                # Display resume analysis
+                st.subheader("Resume Analysis")
+                if st.button("Evaluate Resume"):
+                    try:
+                        st.write(format_job_roles(job_roles))
+                    except UnicodeDecodeError:
+                        st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
+
+                # Scrape Coursera courses based on job roles
+                    if job_roles:
+                        courses = scrape_coursera_courses(job_roles)
+                        # Display course recommendations
+                        st.subheader("Recommended Courses")
+                        if courses:
+                            for course in courses:
+                                st.write(courses)
+                                st.markdown("---")
+                        else:
+                            st.write("No courses found for the given job roles.")
 
             except UnicodeDecodeError:
                 st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
