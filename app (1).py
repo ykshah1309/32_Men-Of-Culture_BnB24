@@ -301,7 +301,7 @@ def scrape_coursera_courses(job_roles):
 import openai
 from openai import OpenAI
 # Set your OpenAI API key
-OPENAI_API_KEY = "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"
+OPENAI_API_KEY = "AUTH-KEY"
 def render_chat_page():
     st.title("CarrerGuide at your assistence!")
 
