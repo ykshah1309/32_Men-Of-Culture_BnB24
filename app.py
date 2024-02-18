@@ -60,8 +60,8 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 def render_landing_page():
-    st.title("Welcome to Career Navigator")
-    st.markdown("<p style='font-size: 24px;'>This is where you can start your career journey!</p>", unsafe_allow_html=True)
+    st.title("CareerCrafter.AI")
+    st.markdown("<p style='font-size: 24px;'>Explore personalized job role suggestions, fine-tune your resume with our advanced analyzer, chat with our AI-powered assistant for instant guidance, discover tailored online skill courses for growth, and stay ahead with real-time job-salary trend analysis. Your career journey just got a whole lot smoother with CareerFlow! 💼✨</p>", unsafe_allow_html=True)
     if st.button("Continue to User Information"):
         st.session_state["page"] = "User Information"
 
@@ -301,10 +301,11 @@ def scrape_coursera_courses(job_roles):
 import openai
 from openai import OpenAI
 # Set your OpenAI API key
-OPENAI_API_KEY = "AUTH_KEY"
+OPENAI_API_KEY = "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"
 def render_chat_page():
     st.title("CarrerGuide at your assistence!")
-
+    if st.sidebar.button("Back to Dashboard"):
+        st.session_state["page"] = "Dashboard"
     # Set OpenAI API key from Streamlit secrets
     client = OpenAI(api_key=OPENAI_API_KEY)
 
