@@ -9,6 +9,12 @@ from streamlit_echarts import st_pyecharts
 import random
 import base64
 import time
+from hugchat import hugchat
+from hugchat.login import Login
+from dotenv import dotenv_values
+import subprocess
+import pickle
+import json 
 
 # Set page config to wide layout
 st.set_page_config(layout="wide")
@@ -23,7 +29,7 @@ def main():
         render_user_info_page()
     elif page == "Dashboard":
         render_dashboard(user_info)  # Pass user_info to render_dashboard function
-    elif st.session_state["page"] == "Chat":
+    elif page == "ChatBot":
         render_chat_page()
 
 def get_base64(bin_file):
@@ -292,21 +298,19 @@ def scrape_coursera_courses(job_roles):
     
     return courses
 
-# Streamed response emulator
-def response_generator():
-    response = random.choice(
-        [
-            "Hello there! How can I assist you today?",
-            "Hi, human! Is there anything I can help you with?",
-            "Do you need help?",
-        ]
-    )
-    for word in response.split():
-        yield word + " "
-        time.sleep(0.05)
-
+import openai
+from openai import OpenAI
+# Set your OpenAI API key
+OPENAI_API_KEY = "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"
 def render_chat_page():
-    st.title("Simple chat")
+    st.title("CarrerGuide at your assistence!")
+
+    # Set OpenAI API key from Streamlit secrets
+    client = OpenAI(api_key=OPENAI_API_KEY)
+
+    # Set a default model
+    if "openai_model" not in st.session_state:
+        st.session_state["openai_model"] = "gpt-3.5-turbo"
 
     # Initialize chat history
     if "messages" not in st.session_state:
@@ -324,12 +328,18 @@ def render_chat_page():
         # Display user message in chat message container
         with st.chat_message("user"):
             st.markdown(prompt)
-
         # Display assistant response in chat message container
-        with st.chat_message("assistant"):
-            response = st.write_stream(response_generator())
-        # Add assistant response to chat history
-        st.session_state.messages.append({"role": "assistant", "content": response})
+    with st.chat_message("assistant"):
+        stream = client.chat.completions.create(
+            model=st.session_state["openai_model"],
+            messages=[
+                {"role": m["role"], "content": m["content"]}
+                for m in st.session_state.messages
+            ],
+            stream=True,
+        )
+        response = st.write_stream(stream)
+    st.session_state.messages.append({"role": "assistant", "content": response})
 
 def render_dashboard(user_info):
     st.title("Dashboard")
@@ -348,10 +358,10 @@ def render_dashboard(user_info):
     st.sidebar.write("")
     if st.sidebar.button("Evaluate User Details"):
         st.session_state["show_resume_analysis"] = True
-
+    
     st.sidebar.write("")
-    if st.button("Chat Page"):
-        st.session_state["page"] = "Chat"
+    if st.sidebar.button("Chat-Assist"):
+        st.session_state["page"] = "ChatBot"
 
     st.sidebar.write("") 
     if st.sidebar.button("Back to User Information"):
@@ -404,6 +414,6 @@ def render_dashboard(user_info):
                 st.error("Error: Unable to decode the resume text. Please ensure the file format is correct.")
         else:
             st.write("Upload your resume to analyze skills and suggest job roles.")
-
+    
 if __name__ == "__main__":
     main()
