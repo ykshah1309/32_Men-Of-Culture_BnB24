@@ -3,6 +3,12 @@ import re
 import spacy
 import requests 
 from bs4 import BeautifulSoup
+from pyecharts import options as opts
+from pyecharts.charts import Bar
+from streamlit_echarts import st_pyecharts
+import random
+import base64
+import time
 
 # Set page config to wide layout
 st.set_page_config(layout="wide")
@@ -17,6 +23,35 @@ def main():
         render_user_info_page()
     elif page == "Dashboard":
         render_dashboard(user_info)  # Pass user_info to render_dashboard function
+    elif st.session_state["page"] == "Chat":
+        render_chat_page()
+
+def get_base64(bin_file):
+    with open(bin_file, 'rb') as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+
+def set_background(png_file):
+    bin_str = get_base64(png_file)
+    page_bg_img = '''
+    <style>
+    .stApp {
+    background-image: url("data:image/png;base64,%s");
+    background-size: cover;
+    }
+    </style>
+    ''' % bin_str
+    st.markdown(page_bg_img, unsafe_allow_html=True)
+
+# Set background image
+set_background('/content/back.png')
+st.markdown("""
+    <style>
+        [data-testid=stSidebar] {
+            background-color: #00000000;
+        }
+    </style>
+    """, unsafe_allow_html=True)
 
 def render_landing_page():
     st.title("Welcome to Career Navigator")
@@ -26,7 +61,6 @@ def render_landing_page():
 
 def render_user_info_page():
     st.title("User Information")
-
     # Input fields for user name and email
     name = st.text_input("Enter your name:")
     email = st.text_input("Enter your email:")
@@ -258,25 +292,87 @@ def scrape_coursera_courses(job_roles):
     
     return courses
 
+# Streamed response emulator
+def response_generator():
+    response = random.choice(
+        [
+            "Hello there! How can I assist you today?",
+            "Hi, human! Is there anything I can help you with?",
+            "Do you need help?",
+        ]
+    )
+    for word in response.split():
+        yield word + " "
+        time.sleep(0.05)
+
+def render_chat_page():
+    st.title("Simple chat")
+
+    # Initialize chat history
+    if "messages" not in st.session_state:
+        st.session_state.messages = []
+
+    # Display chat messages from history on app rerun
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
+
+    # Accept user input
+    if prompt := st.chat_input("What is up?"):
+        # Add user message to chat history
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        # Display user message in chat message container
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # Display assistant response in chat message container
+        with st.chat_message("assistant"):
+            response = st.write_stream(response_generator())
+        # Add assistant response to chat history
+        st.session_state.messages.append({"role": "assistant", "content": response})
+
 def render_dashboard(user_info):
     st.title("Dashboard")
     
     # Display user information in sidebar
-    st.sidebar.title("User Information")
-    st.sidebar.write(f"{user_info['name']}")
-    st.sidebar.write(f"{user_info['college_name']}, {user_info['course_name']}, {user_info['study_year']}")
+    st.sidebar.title(f"{user_info['name']}")
+    st.sidebar.subheader(f"{user_info['college_name']}")
+    st.sidebar.subheader(f"{user_info['course_name']}")
 
     if user_info.get("company_name") and user_info.get("position"):
-        st.sidebar.write(f"{user_info['company_name']}, {user_info['position']}")
+        st.sidebar.subheader(f"{user_info['company_name']}")
+        st.sidebar.subheader(f"{user_info['position']}")
 
     # Add navigation buttons at the bottom of the sidebar
     st.sidebar.markdown("---")
+    st.sidebar.write("")
+    if st.sidebar.button("Evaluate User Details"):
+        st.session_state["show_resume_analysis"] = True
+
+    st.sidebar.write("")
+    if st.button("Chat Page"):
+        st.session_state["page"] = "Chat"
+
+    st.sidebar.write("") 
     if st.sidebar.button("Back to User Information"):
         st.session_state["page"] = "User Information"
         st.session_state["show_resume_analysis"] = False
         st.session_state["show_course_recommendation"] = False
 
     # Main section
+    b = (
+        Bar()
+        .add_xaxis(["Software Engineer", "Data Scientist", "Network Engineer", "Database Administrator", "Systems Analyst", "Cybersecurity Analyst", "Data Scientist", "Cloud Architect"])
+        .add_yaxis("2022-2023 Median Salary in ($)", [120000, 125000, 95000, 90000, 85000, 100000, 130000])
+        .set_global_opts(
+            title_opts=opts.TitleOpts(
+                title="Job Role Trend", subtitle="2022-2023 Trend"
+            ),
+            toolbox_opts=opts.ToolboxOpts(),
+        )
+    )
+    st_pyecharts(b)
+
     with st.expander("Resume Analysis and Course Recommendations", expanded=True):
         uploaded_resume = user_info.get("uploaded_resume")
         if uploaded_resume is not None:
